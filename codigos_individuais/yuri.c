@@ -20,8 +20,7 @@ struct k_thread thread_a;
 struct k_thread thread_b;
 
 // Gerador pseudoaleatorio
-static uint32_t pseudo_random(uint32_t seed, uint32_t iteracao)
-{
+static uint32_t pseudo_random(uint32_t seed, uint32_t iteracao) {
     uint32_t x = k_cycle_get_32() ^ seed ^ (iteracao * 2654435761u);
 
     x ^= x >> 16;
@@ -167,28 +166,12 @@ int main(void)
     printk("==============================\n");
 
     // Thread A
-    k_thread_create(
-        &thread_a,
-        stack_thread_a,
-        STACK_SIZE,
-        thread_impressao,
-        NULL, NULL, NULL,
-        PRIORIDADE,
-        0,
-        K_NO_WAIT
-    );
+    k_thread_create(&thread_a, stack_thread_a, STACK_SIZE,thread_impressao,
+                    NULL, NULL, NULL, PRIORIDADE, 0, K_NO_WAIT);
 
     // Thread B
-    k_thread_create(
-        &thread_b,
-        stack_thread_b,
-        STACK_SIZE,
-        thread_digitalizacao,
-        NULL, NULL, NULL,
-        PRIORIDADE,
-        0,
-        K_NO_WAIT
-    );
+    k_thread_create(&thread_b, stack_thread_b, STACK_SIZE, thread_digitalizacao,
+                    NULL, NULL, NULL, PRIORIDADE, 0, K_NO_WAIT);
 
     // Main
     while (1) {
