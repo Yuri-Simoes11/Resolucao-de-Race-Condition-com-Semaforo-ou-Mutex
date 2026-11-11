@@ -1,41 +1,109 @@
+
 #include <zephyr/kernel.h>
-#include <zephyr/device.h>
-#include <zephyr/drivers/gpio.h>
+#include <zephyr/sys/atomic.h>
+#include <zephyr/sys/printk.h>
 
-#define SLEEP_TIME_MS 500
+// Configuracoes
+#define STACK_SIZE 1024
+#define PRIORIDADE 5
 
-// Define o LED usando Device Tree
-#define LED0_NODE DT_ALIAS(led0)
+// Recursos compartilhados
+K_MUTEX_DEFINE(mutex_impressora);
+K_MUTEX_DEFINE(mutex_scanner);
 
-// Verifica se o LED está definido no Device Tree
-#if DT_NODE_HAS_STATUS(LED0_NODE, okay)
-static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED0_NODE, gpios);
-#else
-#error "Unsupported board: led0 devicetree alias is not defined"
-#endif
+// Sincronizacao para garantir que ambas
+// as threads adquiram seu primeiro mutex.
+atomic_t threads_prontas = ATOMIC_INIT(0);
 
-void main(void)
+// Stacks das threads
+K_THREAD_STACK_DEFINE(stack_thread_a, STACK_SIZE);
+K_THREAD_STACK_DEFINE(stack_thread_b, STACK_SIZE);
+
+struct k_thread thread_a;
+struct k_thread thread_b;
+
+// Thread A: Impressao
+void thread_impressao(void *p1, void *p2, void *p3)
 {
-    int ret;
+    printk("\n[THREAD A] Iniciando impressao\n");
 
-    // Verifica se o device está pronto
-    if (!gpio_is_ready_dt(&led)) {
-        printk("Error: LED device %s is not ready\n", led.port->name);
-        return;
+    // 1. Adquire a impressora
+    k_mutex_lock(&mutex_impressora, K_FOREVER);
+
+    printk("[THREAD A] Impressora adquirida!\n");
+
+    // Informa que ja possui seu primeiro recurso
+    atomic_inc(&threads_prontas);
+
+    // Aguarda a Thread B adquirir seu primeiro recurso
+    while (atomic_get(&threads_prontas) < 2) {
+        k_yield();
     }
 
-    // Configura o pino como saída
-    ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
-    if (ret < 0) {
-        printk("Error %d: failed to configure LED pin\n", ret);
-        return;
+    printk("[THREAD A] Solicitando scanner...\n");
+
+    // 2. Tenta adquirir o scanner
+    // Ficara bloqueada se a Thread B possuir o recurso
+    k_mutex_lock(&mutex_scanner, K_FOREVER);
+
+    printk("[THREAD A] Scanner adquirido!\n");
+
+    // Nunca devera chegar aqui
+    k_mutex_unlock(&mutex_scanner);
+    k_mutex_unlock(&mutex_impressora);
+}
+
+// Thread B: Digitalizacao
+void thread_digitalizacao(void *p1, void *p2, void *p3)
+{
+    printk("\n[THREAD B] Iniciando digitalizacao\n");
+
+    // 1. Adquire o scanner
+    k_mutex_lock(&mutex_scanner, K_FOREVER);
+
+    printk("[THREAD B] Scanner adquirido!\n");
+
+    // Informa que ja possui seu primeiro recurso
+    atomic_inc(&threads_prontas);
+
+    // Aguarda a Thread A adquirir seu primeiro recurso
+    while (atomic_get(&threads_prontas) < 2) {
+        k_yield();
     }
 
-    printk("LED blinking on %s pin %d\n", led.port->name, led.pin);
+    printk("[THREAD B] Solicitando impressora...\n");
 
+    // 2. Tenta adquirir a impressora
+    // Ficara bloqueada se a Thread A possuir o recurso
+    k_mutex_lock(&mutex_impressora, K_FOREVER);
+
+    printk("[THREAD B] Impressora adquirida!\n");
+
+    // Nunca devera chegar aqui
+    k_mutex_unlock(&mutex_impressora);
+    k_mutex_unlock(&mutex_scanner);
+}
+
+// Main
+int main(void)
+{
+    printk("\n==============================\n");
+    printk(" DEMONSTRACAO DE DEADLOCK\n");
+    printk("==============================\n");
+
+    // Criacao da Thread A
+    k_thread_create(&thread_a, stack_thread_a, STACK_SIZE, thread_impressao,
+                    NULL, NULL, NULL, PRIORIDADE, 0, K_NO_WAIT);
+
+    // Criacao da Thread B
+    k_thread_create(&thread_b, stack_thread_b, STACK_SIZE, thread_digitalizacao,
+                    NULL, NULL, NULL, PRIORIDADE, 0, K_NO_WAIT);
+
+    // Main continua executando
     while (1) {
-        // Toggle do LED usando a nova API
-        gpio_pin_toggle_dt(&led);
-        k_msleep(SLEEP_TIME_MS);
+        printk("[MAIN] Sistema principal funcionando...\n");
+        k_sleep(K_SECONDS(2));
     }
+
+    return 0;
 }
