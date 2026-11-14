@@ -9,7 +9,7 @@
 volatile int contador = 0;
 
 K_SEM_DEFINE(fim_threads, 0, 2);
-K_SEM_DEFINE(alternanciadasthreads, 1, 1);
+K_MUTEX_DEFINE(alternanciadasthreads);
 
 
 static inline int somar_com_falha(int valor) {
@@ -19,9 +19,9 @@ static inline int somar_com_falha(int valor) {
 
 void tarefa_incremento(void *arg1, void *arg2, void *arg3) {
     for (int i = 0; i < TOTAL_INCREMENTOS; i++) {
-        k_sem_take(&alternanciadasthreads, K_FOREVER);
+        k_mutex_lock(&alternanciadasthreads, K_FOREVER);
         contador = somar_com_falha(contador);
-        k_sem_give(&alternanciadasthreads);
+        k_mutex_unlock(&alternanciadasthreads);
     }
     k_sem_give(&fim_threads);
 }
