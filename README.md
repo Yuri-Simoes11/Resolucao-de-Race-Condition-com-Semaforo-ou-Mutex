@@ -1,3 +1,7 @@
+# INSTRUÇÕES PARA COMPILAÇÃO DO CÓDIGO
+Para facilitar, criamos uma nova pasta para o envio dos códigos (tanto os antigos como os corrigidos). Para usá-los, basta copiar e colar na main.c e compilar, a outra pasta não causará nenhuma interferência. O main provavelmente estará com um blink com o zepyhr atualizado caso queira testar antes de usar os códigos.
+
+
 # PSI-Microcontroladores2-Aula06
 Atividade: Resolução de Race Condition com Semáforo ou Mutex
 
